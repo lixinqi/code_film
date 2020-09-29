@@ -18,12 +18,25 @@ def slow_show(text, interval=time_interval):
 def stdout_reader(pipe, queue):
     try:
         with pipe:
-            for line in iter(lambda: pipe.readline(), b''):
-                queue.put(("output", line))
+            for char in iter(lambda: pipe.read(1), b''):
+                queue.put(("output", 0, char))
     finally:
         queue.put(None)
 
 global_cond = Condition()
+input_cond = Condition()
+
+def CondNotify(cond):
+    cond.acquire()
+    cond.notify()
+    cond.release()
+
+
+def CondWait(cond):
+    cond.acquire()
+    cond.wait()
+    cond.release()
+
 
 def stderr_reader(pipe, queue):
     try:
@@ -35,10 +48,7 @@ def stderr_reader(pipe, queue):
                     if maybe_prompt == b'':
                         break
                     elif maybe_prompt == b'>>':
-                        time.sleep(time_interval)
-                        global_cond.acquire()
-                        global_cond.notify()
-                        global_cond.release()
+                        CondNotify(global_cond)
                     else:
                         # do nothing
                         pass
@@ -48,32 +58,28 @@ def stderr_reader(pipe, queue):
                     if maybe_prompt == b'':
                         break
                     elif maybe_prompt == b'..':
-                        time.sleep(time_interval)
-                        global_cond.acquire()
-                        global_cond.notify()
-                        global_cond.release()
+                        CondNotify(global_cond)
                     else:
                         # do nothing
                         pass
                     word += maybe_prompt
-                queue.put(("output", word))
+                queue.put(("output", 0, word))
     finally:
         queue.put(None)
 
 def output(queue):
-    terminal_flag = False
-    for data_type, line in iter(queue.get, None):
+    for data_type, display_interval, line in iter(queue.get, None):
         if data_type == "input":
-            slow_show(line.decode())
+            slow_show(line.decode(), display_interval)
+            CondNotify(input_cond)
         elif data_type == "output":
-            #if terminal_flag == False:
             print(line.decode(), end="")
-        elif data_type == "halt":
-            terminal_flag = True
+            sys.stdout.flush()
         else:
             raise NotImplementedError
 
-process = Popen(['python3', '-i'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+# using option -c "import sys" to disable verbose
+process = Popen(['python3', '-i', '-c', "import sys"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
 queue = Queue()
 stdout_thread = Thread(target=stdout_reader, args=[process.stdout, queue])
 stderr_thread = Thread(target=stderr_reader, args=[process.stderr, queue])
@@ -82,29 +88,25 @@ stdout_thread.start()
 stderr_thread.start()
 display_thread.start()
 
-def Interpret(expr):
+def Interpret(expr, interval=time_interval):
     expr = expr.encode()
-    queue.put(("input", expr))
+    queue.put(("input", interval, expr))
+    CondWait(input_cond)
     process.stdin.write(expr)
     process.stdin.flush()
-    global_cond.acquire()
-    global_cond.wait()
-    global_cond.release()
-    time.sleep(time_interval)
+    CondWait(global_cond)
 
 time.sleep(time_interval * 2)
 
 for line in sys.stdin:
     Interpret(line)
 
-queue.put(("halt", True))
+Interpret("# Thanks for watching. Produced by https://github.com/Oneflow-Inc/oneflow\n", 0.1)
+Interpret("\n")
 
 process.stdin.close()
 process.terminate()
 stdout_thread.join()
 stderr_thread.join()
 display_thread.join()
-process.wait(timeout=time_interval)
-
-slow_show("# Thanks for watching\n", interval=0.1)
-time.sleep(time_interval * 10)
+print("")

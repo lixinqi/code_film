@@ -1,4 +1,4 @@
-try it
+Try it
 ```bash
-sh example.py
+cat numpy_where.py | python3 py_code_film.py
 ```

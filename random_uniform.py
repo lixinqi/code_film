@@ -9,6 +9,7 @@ numpy.random.rand(3, 3)
 
 import tensorflow
 tensorflow.ones((1)) # 这行代码只是为了初始化tensorflow，请忽略。
+
 tensorflow.random.uniform((3, 3))
 
 # pytorch
