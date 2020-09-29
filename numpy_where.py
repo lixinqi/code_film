@@ -1,4 +1,4 @@
-# numpy api 之 where
+# numpy api 之 numpy.where（一）
 
 import numpy as np
 
