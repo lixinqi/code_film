@@ -7,13 +7,18 @@ import jieba
 import logging
 jieba.setLogLevel(logging.INFO)
 
-time_interval = 0.333
+time_interval = 0.37
+
+fast_show_letters = set([' ', '#'])
 
 def slow_show(text, interval=time_interval):
     for letters in jieba.cut(text):
         print(letters, end = "")
         sys.stdout.flush()
-        time.sleep(interval)
+        sleep_time = interval
+        if letters in fast_show_letters:
+            sleep_time = interval / 3
+        time.sleep(sleep_time)
 
 def stdout_reader(pipe, queue):
     try:
@@ -27,6 +32,7 @@ global_cond = Condition()
 input_cond = Condition()
 
 def CondNotify(cond):
+    time.sleep(time_interval / 4)
     cond.acquire()
     cond.notify()
     cond.release()
